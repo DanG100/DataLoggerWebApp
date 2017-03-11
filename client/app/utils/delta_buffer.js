@@ -19,7 +19,7 @@ export class DeltaBuffer {
   }
 
   begin() {
-    this.refresh = setInterval(function () {
+    if(!this.refresh) this.refresh = setInterval(function () {
       this.publishLast();
     }.bind(this), 1000);
   }
@@ -70,6 +70,7 @@ export class DeltaBuffer {
   publishLast() {
     for(let i = 0; i < this.keys.length; i++) {
       if(this.lastPoints[i].point instanceof Array){
+        //console.log(this.lastPoints[i].point);
         let out = new Object();
         let seconds = Math.floor(this.lastPoints[i].time / (1000) % 60);
         let minutes = Math.floor(this.lastPoints[i].time / (1000 * 60) % 60);

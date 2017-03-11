@@ -37,13 +37,13 @@ var graphRenderQueue = [];
 
 function createGraph(CAN_Id, descriptionArr, data, type){
   if(type == "flag"){
-    genericsIds.pop();
     let info = new Object();
     info.buffer = new DeltaBuffer(descriptionArr, plotNew);
     genericsBufferMap.set(CAN_Id, info);
     for(let description of descriptionArr){
       let bufferInfo = new Object();
       let graphData = new Object();
+      graphData.buffer = {CAN_Id: CAN_Id};
       graphData.CAN_Id = CAN_Id + description;
       graphData.flagArr = [];
       for(var i = 1; i < data[description].length; i++){
@@ -51,7 +51,6 @@ function createGraph(CAN_Id, descriptionArr, data, type){
       }
       graphData.graphFormat = data;
       graphRenderQueue.push(graphData);
-      genericsIds.push(CAN_Id + description);
       bufferInfo.count = 0;
       bufferInfo.firstPointRemoved = false;
       genericsBufferMap.set(CAN_Id + description, bufferInfo);
@@ -60,6 +59,7 @@ function createGraph(CAN_Id, descriptionArr, data, type){
   else{
     let bufferInfo = new Object();
     let graphData = new Object();
+    graphData.buffer.CAN_Id = CAN_Id;
     graphData.CAN_Id = CAN_Id;
     graphData.descriptionArr = descriptionArr;
     graphData.graphFormat = data;
@@ -97,15 +97,22 @@ function bindGenerics(data, type){
       if( angular.element(document.querySelector('#can'+data.CAN_Id+type)).length ) {
         console.log("div already exists");
       }
-      else {
-        genericsIds.push(data.CAN_Id+type);
+      else{
+        for(let description of descriptionArr){
+          if( angular.element(document.querySelector('#can'+data.CAN_Id+type+description)).length ) {
+            console.log("div already exists");
+          }
+          else{
+              genericsIds.push(data.CAN_Id+type+description);
+          }
+        }
       }
       createGraph(data.CAN_Id+type, descriptionArr, simpleVal, type);
     }
   }
 }
 function plotNew(newData) {
-  console.log(newData);
+  //console.log(newData);
   if (newData.CAN_Id == 512 || newData.CAN_Id == 513) {
     var object = new Object();
     object.Timestamp = newData.Timestamp;
@@ -226,7 +233,7 @@ export class LiveComponent {
     this.carStateBuffer.begin();
 	  this.bmsStateBuffer = new DeltaBuffer(['flag'],plotNew);
     this.bmsStateBuffer.begin();
-    
+
     $scope.genericsGraphMap = genericsGraphMap;
     $scope.genericsBufferMap = genericsBufferMap;
     $scope.genericsIds = genericsIds;
@@ -488,8 +495,8 @@ export class LiveComponent {
     $scope.$on('updateGraphs', function () {
       console.log("Creating graphs");
       graphRenderQueue.forEach(function (graph) {
-        console.log(genericsBufferMap.get(graph.CAN_Id));
-        genericsBufferMap.get(graph.CAN_Id).buffer.begin();
+        console.log(genericsBufferMap.get(graph.buffer.CAN_Id));
+        genericsBufferMap.get(graph.buffer.CAN_Id).buffer.begin();
         genericsGraphMap.set(graph.CAN_Id, c3.generate({
           bindto: '#can' + graph.CAN_Id,
           data: {
