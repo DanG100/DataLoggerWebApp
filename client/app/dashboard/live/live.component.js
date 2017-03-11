@@ -36,19 +36,41 @@ var genericsIds = [];
 var graphRenderQueue = [];
 
 function createGraph(CAN_Id, descriptionArr, data, type){
-  var bufferInfo = new Object();
-  if(type == 'decimal')bufferInfo.buffer = new AverageBuffer(1000, descriptionArr, plotNew);
-  else if(type == 'state')bufferInfo.buffer = new DeltaBuffer(descriptionArr, plotNew);
-  bufferInfo.count = 0;
-  bufferInfo.firstPointRemoved = false;
-  genericsBufferMap.set(CAN_Id, bufferInfo);
-  console.log(genericsBufferMap);
-
-  var graphData = new Object();
-  graphData.CAN_Id = CAN_Id;
-  graphData.descriptionArr = descriptionArr;
-  graphData.graphFormat = data;
-  graphRenderQueue.push(graphData);
+  if(type == "flag"){
+    genericsIds.pop();
+    let info = new Object();
+    info.buffer = new DeltaBuffer(descriptionArr, plotNew);
+    genericsBufferMap.set(CAN_Id, info);
+    for(let description of descriptionArr){
+      let bufferInfo = new Object();
+      let graphData = new Object();
+      graphData.CAN_Id = CAN_Id + description;
+      graphData.flagArr = [];
+      for(var i = 1; i < data[description].length; i++){
+        graphData.flagArr.push(description + i);
+      }
+      graphData.graphFormat = data;
+      graphRenderQueue.push(graphData);
+      genericsIds.push(CAN_Id + description);
+      bufferInfo.count = 0;
+      bufferInfo.firstPointRemoved = false;
+      genericsBufferMap.set(CAN_Id + description, bufferInfo);
+    }
+  }
+  else{
+    let bufferInfo = new Object();
+    let graphData = new Object();
+    graphData.CAN_Id = CAN_Id;
+    graphData.descriptionArr = descriptionArr;
+    graphData.graphFormat = data;
+    graphRenderQueue.push(graphData);
+    if(type == 'decimal')bufferInfo.buffer = new AverageBuffer(1000, descriptionArr, plotNew);
+    else if(type == 'state')bufferInfo.buffer = new DeltaBuffer(descriptionArr, plotNew);
+    bufferInfo.count = 0;
+    bufferInfo.firstPointRemoved = false;
+    genericsBufferMap.set(CAN_Id, bufferInfo);
+    console.log(genericsBufferMap);
+  }
 }
 function bindGenerics(data, type){
   var descriptionArr = [];
@@ -56,12 +78,7 @@ function bindGenerics(data, type){
   simpleVal.Timestamp = data.Timestamp;
   simpleVal.CAN_Id = data.CAN_Id+type;
   data.generics.forEach(function (generic) {
-    if (generic.dataType == 'flag'){
-      descriptionArr.push(generic.description);
-      for (var i = 0; i < generic.length; i++)
-        simpleVal[generic.description + i] = generic.value[i];
-    }
-    else if (generic.dataType == type) {
+    if (generic.dataType == type) {
       simpleVal[generic.description] = generic.value;
       descriptionArr.push(generic.description);
     }
@@ -88,6 +105,7 @@ function bindGenerics(data, type){
   }
 }
 function plotNew(newData) {
+  console.log(newData);
   if (newData.CAN_Id == 512 || newData.CAN_Id == 513) {
     var object = new Object();
     object.Timestamp = newData.Timestamp;
@@ -159,21 +177,15 @@ function plotNew(newData) {
     }
     temp_count++;
   }
-  else if (newData.CAN_Id == 392) {
-    var object = new Object();
-    object.Timestamp = newData.Timestamp;
-    if (newData.flag) {
-      for (var i = 1; i <= newData.flag.length; i++)
-        if(newData.flag[i])
-          object["f" + i] = i;
-    }
+  else if (newData.CAN_Id == "392flag") {
+    delete newData.CAN_Id;
     if (bmsFlag_count < 50 && bmsFlag_initialPointRemoved) bmsFlag_chart.flow({
-      json: object,
+      json: newData,
       length: 0
     });
     else {
       bmsFlag_chart.flow({
-        json: object
+        json: newData
       });
       bmsFlag_initialPointRemoved = true;
     }
@@ -214,7 +226,7 @@ export class LiveComponent {
     this.carStateBuffer.begin();
 	  this.bmsStateBuffer = new DeltaBuffer(['flag'],plotNew);
     this.bmsStateBuffer.begin();
-
+    
     $scope.genericsGraphMap = genericsGraphMap;
     $scope.genericsBufferMap = genericsBufferMap;
     $scope.genericsIds = genericsIds;
@@ -278,8 +290,7 @@ export class LiveComponent {
           'temp2': 'Temperature 3',
           'temp3': 'Temperature 4',
           'temp4': 'Temperature 5',
-          'temp5': 'Temperature 6',
-
+          'temp5': 'Temperature 6'
         }
       },
       axis: {
@@ -423,26 +434,7 @@ export class LiveComponent {
         xFormat: '%M.%S',
         keys: {
           x: 'Timestamp',
-          value: ['f1','f2','f3','f4','f5','f6','f7','f8','f9','f10','f11','f12','f13','f14','f15','f16']
-        },
-        names: {
-          'f1': 'Charge mode',
-          'f2': 'Pack temp limit exceeded',
-          'f3': 'Pack temp limit close',
-          'f4': 'Pack temperature low limit',
-          'f5': 'Low SOC',
-          'f6': 'Critical SOC',
-          'f7': 'Imbalance',
-          'f8': 'Internal Fault',
-          'f9': 'Negative contactor closed',
-          'f10': 'Positive contactor closed',
-          'f11': 'Isolation fault',
-          'f12': 'Cell too high',
-          'f13': 'Cell too low',
-          'f14': 'Charge halt',
-          'f15': 'Full',
-          'f16': 'Precharge contactor closed'
-
+          value: ['flag1','flag2','flag3','flag4','flag5','flag6','flag7','flag8','flag9','flag10','flag11','flag12','flag13','flag14','flag15','flag16']
         },
         types: {
           state: 'step'
@@ -450,30 +442,28 @@ export class LiveComponent {
       },
       axis: {
         y: {
-          max: 16,
-          min: 0,
           tick: {
+            min:1, max:16,
             format: function(d){
-              switch (d)
-              {
-                case 1 : return  'Charge mode';
-                case 2 : return  'Pack temp limit exceeded';
-                case 3 : return  'Pack temp limit close';
-                case 4 : return  'Pack temperature low limit';
-                case 5 : return  'Low SOC';
-                case 6 : return  'Critical SOC';
-                case 7 : return  'Imbalance';
-                case 8 : return  'Internal Fault';
-                case 9 : return  'Negative contactor closed';
-                case 10 : return 'Positive contactor closed';
-                case 11 : return 'Isolation fault';
-                case 12 : return 'Cell too high';
-                case 13 : return 'Cell too low';
-                case 14 : return 'Charge halt';
-                case 15 : return 'Full';
-                case 16 : return 'Precharge contactor closed';
-              }
+              let values = ['Charge mode',
+              'Pack temp limit exceeded',
+              'Pack temp limit close',
+              'Pack temperature low limit',  
+              'Low SOC',
+              'Critical SOC',
+              'Imbalance',
+              'Internal Fault',
+              'Negative contactor closed',
+              'Positive contactor closed',
+              'Isolation fault',
+              'Cell too high',
+              'Cell too low',
+              'Charge halt',
+              'Full',
+              'Precharge contactor closed'];
+              return values[d-1];
             },
+            culling: false
           }
         },
         x: {
@@ -481,7 +471,7 @@ export class LiveComponent {
           tick: {
             format: '%M:%S'
           },
-          culling:true,
+          culling:true
         }
       },
       transition: {
@@ -507,14 +497,15 @@ export class LiveComponent {
             xFormat: '%M.%S',
             keys: {
               x: 'Timestamp',
-              value: graph.descriptionArr
+              value: graph.flagArr || graph.descriptionArr
             }
           },
           axis: {
             y: {
               tick: {
                 format: d3.format(".3")
-              }
+              },
+              culling:false
             },
             x: {
               type: 'timeseries',
@@ -596,7 +587,7 @@ export class LiveComponent {
           this.voltageBuffer.push(data);
         }
         if (data.CAN_Id == 392){
-			this.bmsStateBuffer.push(data);
+			    this.bmsStateBuffer.push(data);
         }
       }
     }.bind(this));
@@ -604,7 +595,7 @@ export class LiveComponent {
       if (data && data.generics) {
         bindGenerics(data, "decimal");
         bindGenerics(data, "state");
-        bindGenerics(data, "flag")
+        bindGenerics(data, "flag");
       }
     }.bind(this));
   }
